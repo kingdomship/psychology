@@ -200,3 +200,89 @@ def get_life_domain_context() -> str:
     else:
         lines.append("（你心里有数就好，挑相关的自然带过，不要逐条复述。）")
     return "\n".join(lines)
+
+
+# ── 场景练习建议 ────────────────────────────────────────────────────────
+
+# 轻量级引用 (避免从 simulator 循环导入)
+_SCENARIO_REF = {
+    "express_feelings": {"label": "表达感受", "icon": "💬", "example": "对某个人说出内心的感受"},
+    "set_boundaries": {"label": "设立边界", "icon": "🛡️", "example": "对越界行为说"不""},
+    "resolve_conflict": {"label": "冲突化解", "icon": "🤝", "example": "与有矛盾的人沟通"},
+    "seek_support": {"label": "寻求支持", "icon": "🤲", "example": "向人开口寻求帮助"},
+}
+
+# 领域 → 场景类型映射 (哪些场景适合练习该领域的问题)
+_DOMAIN_SCENARIO_MAP = {
+    "work": ["set_boundaries", "seek_support", "resolve_conflict"],
+    "relationships": ["express_feelings", "resolve_conflict", "set_boundaries"],
+    "health": ["seek_support", "express_feelings"],
+    "hobbies": ["express_feelings", "seek_support"],
+    "finance": ["seek_support", "set_boundaries"],
+    "growth": ["seek_support", "express_feelings"],
+}
+
+# 状态权重 (负面领域优先级最高)
+_STATUS_WEIGHT = {"negative": 3, "neutral": 1, "positive": 0}
+
+# 推荐理由
+_REASONS = {
+    "work": "你最近在工作中遇到了一些挑战，练习沟通技巧可能帮助你更好地应对",
+    "relationships": "你在人际关系方面有些困扰，练习表达和沟通可能有助于改善",
+    "health": "你最近状态不太好，学会向身边的人寻求支持也是很重要的能力",
+    "hobbies": "你的兴趣爱好也可以成为练习真实表达的场景",
+    "finance": "财务问题往往伴随着沟通压力，练习如何开口谈论钱的话题很有帮助",
+    "growth": "你在关注个人成长，而沟通能力是成长的重要部分",
+}
+
+
+def get_scenario_suggestions() -> list[dict]:
+    """基于用户生活领域状态，生成场景练习建议.
+
+    读取 life_domains.json，找到状态负面或显著性高的领域，
+    映射到相关场景类型，返回最多3个建议。
+
+    返回: [{scenario_type, label, icon, example, domain, domain_label, reason, confidence}]
+    """
+    data = _load()
+    suggestions = []
+    seen_types: set[str] = set()
+
+    # 给每个领域打分: 状态权重 * (1 + 显著性)
+    scored = []
+    for key, dom_def in DOMAINS.items():
+        entry = data.get(key, {"status": "neutral", "salience": 0.0})
+        weight = _STATUS_WEIGHT.get(entry.get("status", "neutral"), 0)
+        salience = float(entry.get("salience", 0.0))
+        score = weight * (1.0 + salience)
+        if score > 0:
+            scored.append((key, score, entry))
+
+    scored.sort(key=lambda x: x[1], reverse=True)
+
+    for domain, score, entry in scored:
+        if len(suggestions) >= 3:
+            break
+
+        candidate_types = _DOMAIN_SCENARIO_MAP.get(domain, [])
+        for st in candidate_types:
+            if st in seen_types:
+                continue
+            ref = _SCENARIO_REF.get(st)
+            if not ref:
+                continue
+
+            confidence = min(round(score / 3.0, 2), 0.95)
+            suggestions.append({
+                "scenario_type": st,
+                "label": ref["label"],
+                "icon": ref["icon"],
+                "example": ref["example"],
+                "domain": domain,
+                "domain_label": DOMAINS[domain]["label"],
+                "reason": _REASONS.get(domain, "这个场景可能值得练习"),
+                "confidence": confidence,
+            })
+            seen_types.add(st)
+
+    return suggestions

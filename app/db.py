@@ -543,4 +543,43 @@ def init_db():
         ON report_cache (report_type, milestone_label)
     """)
 
+    # ── 临床评估 ────────────────────────────────────────────────
+    execute("""
+        CREATE TABLE IF NOT EXISTS assessment_sessions (
+            id SERIAL PRIMARY KEY,
+            scale_id VARCHAR(20) NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'in_progress',
+            current_question INTEGER NOT NULL DEFAULT 1,
+            answers JSONB DEFAULT '[]',
+            total_score INTEGER,
+            completed_at TIMESTAMPTZ DEFAULT NULL,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+
+    # ── 治疗目标 ────────────────────────────────────────────────
+    execute("""
+        CREATE TABLE IF NOT EXISTS therapy_goals (
+            id SERIAL PRIMARY KEY,
+            goal_text TEXT NOT NULL DEFAULT '',
+            category VARCHAR(30) NOT NULL DEFAULT 'general',
+            progress_pct INTEGER NOT NULL DEFAULT 0,
+            status VARCHAR(20) NOT NULL DEFAULT 'active',
+            evidence TEXT DEFAULT '',
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+
+    # ── 知情同意记录 ────────────────────────────────────────────
+    execute("""
+        CREATE TABLE IF NOT EXISTS user_consent (
+            id SERIAL PRIMARY KEY,
+            session_id VARCHAR(50) NOT NULL DEFAULT '',
+            consented BOOLEAN NOT NULL DEFAULT TRUE,
+            consent_version VARCHAR(20) DEFAULT '1.0',
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+
     _init_done = True

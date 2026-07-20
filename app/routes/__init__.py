@@ -13,6 +13,10 @@ from app.routes.personality import router as personality_router
 from app.routes.mood import router as mood_router
 from app.routes.psych import router as psych_router
 from app.routes.report import router as report_router
+from app.routes.export import router as export_router
+from app.routes.assessment import router as assessment_router
+from app.routes.goals import router as goals_router
+from app.routes.training import router as training_router
 
 router = APIRouter()
 router.include_router(chat_router)
@@ -26,3 +30,7 @@ router.include_router(personality_router)
 router.include_router(mood_router)
 router.include_router(psych_router)
 router.include_router(report_router)
+router.include_router(export_router)
+router.include_router(assessment_router)
+router.include_router(goals_router)
+router.include_router(training_router)

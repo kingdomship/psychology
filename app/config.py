@@ -33,3 +33,11 @@ DISTILL_DIR = os.path.join(MEMORY_DIR, "distilled_profiles")
 
 # Lock for thread-safe archive file access
 archive_lock = threading.Lock()
+
+
+def atomic_write(path: str, data: str):
+    """Write data to a file atomically via temp file + rename."""
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        f.write(data)
+    os.replace(tmp, path)

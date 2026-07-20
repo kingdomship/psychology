@@ -18,6 +18,62 @@
   }
   canvas { display:block; position:fixed; top:0; left:0; width:100%; height:100%; touch-action: none; }
 
+  /* ── Scenario indicator ── */
+  .scenario-indicator {
+    position:fixed; bottom:108px; left:50%; transform:translateX(-50%);
+    display:flex; align-items:center; gap:6px;
+    background:rgba(124,131,255,0.1); border:1px solid rgba(124,131,255,0.2);
+    border-radius:12px; padding:6px 14px; font-size:0.72rem; color:#c0c0f0;
+    z-index:10; white-space:nowrap;
+  }
+  .scenario-end-btn {
+    width:28px; height:28px; min-width:28px; border-radius:50%;
+    background:rgba(239,83,80,0.12); border:1px solid rgba(239,83,80,0.25);
+    color:#ef5350; font-size:0.7rem; cursor:pointer; display:inline-flex;
+    align-items:center; justify-content:center; transition:all 0.2s;
+  }
+  .scenario-end-btn:hover { background:rgba(239,83,80,0.2); }
+
+  /* ── Toast 通知 ── */
+  #toast-container {
+    position:fixed; top:20px; left:50%; transform:translateX(-50%);
+    z-index:9999; display:flex; flex-direction:column; align-items:center; gap:8px;
+    pointer-events:none;
+  }
+  .toast {
+    pointer-events:auto;
+    display:flex; align-items:center; gap:8px;
+    padding:10px 20px; border-radius:12px;
+    background:rgba(20,18,40,0.92); backdrop-filter:blur(16px);
+    border:1px solid rgba(124,131,255,0.15);
+    box-shadow:0 4px 24px rgba(0,0,0,0.4), 0 0 0 1px rgba(124,131,255,0.05) inset;
+    font-size:0.78rem; color:#d0d0e8;
+    animation: toastIn 0.35s cubic-bezier(0.16,1,0.3,1), toastOut 0.3s cubic-bezier(0.4,0,1,1) 2.8s forwards;
+    max-width:380px;
+  }
+  .toast-icon { font-size:1rem; flex-shrink:0; }
+  .toast-msg { line-height:1.4; }
+  .toast.error {
+    border-color:rgba(239,83,80,0.3);
+    box-shadow:0 4px 24px rgba(239,83,80,0.1), 0 0 0 1px rgba(239,83,80,0.04) inset;
+  }
+  .toast.success {
+    border-color:rgba(102,187,106,0.3);
+    box-shadow:0 4px 24px rgba(102,187,106,0.1), 0 0 0 1px rgba(102,187,106,0.04) inset;
+  }
+  .toast.warning {
+    border-color:rgba(255,167,38,0.3);
+    box-shadow:0 4px 24px rgba(255,167,38,0.1), 0 0 0 1px rgba(255,167,38,0.04) inset;
+  }
+  @keyframes toastIn {
+    from { opacity:0; transform:translateY(-12px); }
+    to { opacity:1; transform:translateY(0); }
+  }
+  @keyframes toastOut {
+    from { opacity:1; transform:translateY(0); }
+    to { opacity:0; transform:translateY(-8px); }
+  }
+
   /* ── Input bar ── */
   #input-row {
     position:fixed; bottom:40px; left:50%; transform:translateX(-50%);
@@ -1776,6 +1832,9 @@ body.therapy-mode #sendBtn {
 }
 .report-gen-btn:hover { background: rgba(124,131,255,0.15); border-color: rgba(124,131,255,0.35); }
 .report-gen-btn.sm { padding: 3px 10px; font-size: 0.65rem; }
+.report-gen-btn.sm.export { background: rgba(0,229,255,0.06); border-color: rgba(0,229,255,0.15); color: #80e8ff; }
+.report-gen-btn.sm.export:hover { background: rgba(0,229,255,0.12); }
+.report-actions-sep { color: #3a3a5a; font-size: 0.6rem; margin: 0 2px; }
 .report-gen-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* 卡片网格 */
@@ -1842,4 +1901,292 @@ body.therapy-mode #sendBtn {
   .report-grid { grid-template-columns: 1fr; }
   .report-bar-label { width: 28px; font-size: 0.6rem; }
   .report-bar-val { width: 30px; font-size: 0.55rem; }
+}
+
+/* ═══════════════════════════════════════════
+   知情同意弹窗
+   ═══════════════════════════════════════════ */
+
+#consent-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(0,0,0,0.7); backdrop-filter: blur(8px);
+  display: flex; align-items: center; justify-content: center;
+  transition: opacity 0.4s;
+}
+#consent-overlay.consent-fadeout { opacity: 0; pointer-events: none; }
+
+.consent-modal {
+  background: var(--surface); border: 1px solid rgba(124,131,255,0.15);
+  border-radius: 20px; padding: 36px 32px 28px; max-width: 520px; width: 90vw;
+  box-shadow: 0 16px 64px rgba(0,0,0,0.5); text-align: center;
+}
+.consent-icon { font-size: 3rem; margin-bottom: 12px; }
+.consent-title { font-size: 1.2rem; font-weight: 700; color: #e0e0f0; margin-bottom: 4px; }
+.consent-subtitle { font-size: 0.75rem; color: #7c83ff; margin-bottom: 20px; letter-spacing: 0.04em; }
+.consent-body { text-align: left; font-size: 0.78rem; color: #a0a0c0; line-height: 1.7; }
+.consent-body ul { margin: 10px 0; padding-left: 20px; }
+.consent-body li { margin-bottom: 6px; }
+.consent-body strong { color: #e0e0f0; }
+.consent-actions { margin-top: 24px; display: flex; justify-content: center; gap: 12px; }
+.consent-btn {
+  padding: 10px 32px; border-radius: 12px; border: none;
+  font-size: 0.85rem; font-family: inherit; cursor: pointer;
+  transition: all 0.2s; letter-spacing: 0.04em;
+}
+.consent-btn.primary { background: var(--accent); color: #fff; }
+.consent-btn.primary:hover { filter: brightness(1.15); }
+
+/* ═══════════════════════════════════════════
+   Goals panel
+   ═══════════════════════════════════════════ */
+.goals-header { margin-bottom: 16px; }
+.goals-title-row { display: flex; flex-direction: column; gap: 2px; }
+.goals-title { font-size: 1.1rem; font-weight: 700; color: #e0e0f0; }
+.goals-subtitle { font-size: 0.65rem; color: #6a6a8a; letter-spacing: 0.04em; }
+
+.goals-create {
+  display: flex; gap: 8px; margin-bottom: 20px;
+  padding: 12px; background: rgba(124,131,255,0.05); border-radius: 14px;
+  border: 1px solid rgba(124,131,255,0.1); flex-wrap: wrap;
+}
+.goals-input {
+  flex: 2; min-width: 160px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px; padding: 10px 14px; color: #e0e0f0; font-size: 0.82rem; font-family: inherit;
+  outline: none; transition: border-color 0.2s;
+}
+.goals-input:focus { border-color: var(--accent); }
+.goals-category {
+  flex: 1; min-width: 100px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px; padding: 10px 12px; color: #c0c0e0; font-size: 0.78rem; font-family: inherit;
+  outline: none; cursor: pointer;
+}
+.goals-btn {
+  padding: 10px 18px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(0,0,0,0.25); color: #b0b0d0; font-size: 0.78rem; font-family: inherit;
+  cursor: pointer; transition: all 0.2s; letter-spacing: 0.04em; white-space: nowrap;
+}
+.goals-btn:hover { border-color: rgba(255,255,255,0.18); color: #e0e0f0; }
+.goals-btn.primary { background: var(--accent); color: #fff; border-color: transparent; }
+.goals-btn.primary:hover { filter: brightness(1.15); }
+
+.goals-section { margin-bottom: 8px; }
+.goals-section-title { font-size: 0.78rem; font-weight: 600; color: #8a8aaa; margin-bottom: 10px; letter-spacing: 0.04em; }
+.goals-empty { text-align: center; padding: 24px; color: #6a6a8a; font-size: 0.78rem; }
+
+.goals-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
+.goals-preset-btn {
+  padding: 5px 12px; border-radius: 16px; border: 1px solid rgba(124,131,255,0.15);
+  background: rgba(124,131,255,0.04); color: #b0b0d0; font-size: 0.72rem;
+  font-family: inherit; cursor: pointer; transition: all 0.2s; white-space: nowrap;
+}
+.goals-preset-btn:hover { border-color: rgba(124,131,255,0.35); background: rgba(124,131,255,0.1); color: #e0e0f0; }
+
+.goals-list { display: flex; flex-direction: column; gap: 10px; }
+
+.goal-card {
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 14px; padding: 14px 16px; transition: border-color 0.2s;
+}
+.goal-card:hover { border-color: rgba(124,131,255,0.15); }
+.goal-card.completed { opacity: 0.6; }
+.goal-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.goal-card-cat {
+  font-size: 0.6rem; letter-spacing: 0.05em; color: #7c83ff;
+  background: rgba(124,131,255,0.1); padding: 2px 10px; border-radius: 20px;
+}
+.goal-card-actions { display: flex; gap: 4px; }
+.goal-action-btn {
+  background: none; border: none; cursor: pointer; font-size: 0.85rem;
+  padding: 2px 4px; opacity: 0.5; transition: opacity 0.2s;
+}
+.goal-action-btn:hover { opacity: 1; }
+.goal-action-btn.danger:hover { filter: hue-rotate(0deg) brightness(1.3); }
+.goal-card-text { font-size: 0.85rem; color: #d0d0e0; line-height: 1.5; margin-bottom: 10px; }
+
+.goal-progress { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.goal-progress-track {
+  flex: 1; height: 6px; background: rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden;
+}
+.goal-progress-fill {
+  height: 100%; border-radius: 3px; background: linear-gradient(90deg, #7c83ff, #a78bfa);
+  transition: width 0.3s ease;
+}
+.goal-progress-fill.done { background: linear-gradient(90deg, #4caf50, #81c784); }
+.goal-progress-text { font-size: 0.75rem; color: #9090b0; min-width: 36px; text-align: right; }
+
+.goal-evidence { font-size: 0.72rem; color: #8080a0; line-height: 1.4; margin-bottom: 4px; }
+.goal-meta { font-size: 0.6rem; color: #505070; letter-spacing: 0.03em; }
+
+/* Progress Editor Overlay */
+.goal-editor-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 2000;
+  display: flex; align-items: center; justify-content: center;
+}
+.goal-editor-dialog {
+  background: #1a1a30; border: 1px solid rgba(124,131,255,0.2); border-radius: 16px;
+  padding: 24px; max-width: 380px; width: 90vw; box-shadow: 0 16px 64px rgba(0,0,0,0.5);
+}
+.goal-editor-title { font-size: 0.9rem; font-weight: 600; color: #e0e0f0; margin-bottom: 16px; }
+.goal-editor-label { display: block; font-size: 0.72rem; color: #8a8aaa; margin-bottom: 6px; margin-top: 12px; }
+.goal-slider { width: 100%; accent-color: #7c83ff; }
+.goal-editor-textarea {
+  width: 100%; box-sizing: border-box; background: rgba(0,0,0,0.25);
+  border: 1px solid rgba(255,255,255,0.08); border-radius: 10px;
+  padding: 10px 14px; color: #e0e0f0; font-size: 0.78rem; font-family: inherit;
+  outline: none; resize: vertical;
+}
+.goal-editor-textarea:focus { border-color: var(--accent); }
+.goal-editor-btns { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
+
+/* ═══════════════════════════════════════════
+   Training / 场景练习 panel
+   ═══════════════════════════════════════════ */
+
+/* ── Section layout ── */
+.training-section { margin-bottom: 4px; }
+.training-section-title { font-size: 0.78rem; font-weight: 600; color: #b0b0d0; margin-bottom: 10px; }
+
+/* ── AI 建议卡片 ── */
+.training-suggestions { display: flex; flex-direction: column; gap: 10px; margin-bottom: 4px; }
+.training-suggestion-card {
+  background: rgba(124,131,255,0.04); border: 1px solid rgba(124,131,255,0.12);
+  border-radius: 14px; padding: 14px 16px;
+  transition: all 0.2s;
+}
+.training-suggestion-card:hover { border-color: rgba(124,131,255,0.25); background: rgba(124,131,255,0.07); }
+.training-suggestion-header {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+}
+.training-suggestion-icon { font-size: 1.2rem; }
+.training-suggestion-label { font-size: 0.85rem; font-weight: 600; color: #e0e0f0; }
+.training-suggestion-domain {
+  font-size: 0.65rem; color: #7c83ff; background: rgba(124,131,255,0.12);
+  padding: 2px 8px; border-radius: 10px; margin-left: auto;
+}
+.training-suggestion-reason { font-size: 0.75rem; color: #9090b0; line-height: 1.5; margin-bottom: 10px; }
+.training-suggestion-btn { width: 100%; }
+
+/* ── 分隔线 ── */
+.training-divider {
+  text-align: center; margin: 16px 0; position: relative;
+}
+.training-divider::before {
+  content: ''; position: absolute; left: 0; top: 50%;
+  width: 100%; height: 1px; background: rgba(255,255,255,0.06);
+}
+.training-divider span {
+  position: relative; background: var(--bg); padding: 0 16px;
+  font-size: 0.72rem; color: #606080;
+}
+
+/* ── 场景类型选择器 ── */
+.training-type-label { font-size: 0.72rem; color: #8080a0; margin-bottom: 6px; }
+.training-types { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+.training-type-btn {
+  background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px; padding: 12px; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  transition: all 0.2s; text-align: center;
+}
+.training-type-btn:hover { border-color: rgba(124,131,255,0.25); background: rgba(124,131,255,0.04); }
+.training-type-btn.active {
+  border-color: rgba(124,131,255,0.5); background: rgba(124,131,255,0.1);
+}
+.training-type-icon { font-size: 1.3rem; }
+.training-type-name { font-size: 0.78rem; color: #d0d0e0; font-weight: 600; }
+.training-type-example { font-size: 0.62rem; color: #707090; line-height: 1.3; }
+
+/* ── 自定义表单 ── */
+.training-custom-form { margin-top: 4px; }
+.training-form-actions { display: flex; gap: 8px; margin-top: 8px; }
+.training-form-actions .goals-btn { flex: 1; }
+.goals-btn.secondary { color: #9090b0; border-color: rgba(255,255,255,0.12); }
+.goals-btn.secondary:hover { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.2); }
+.training-field-label { display: block; font-size: 0.72rem; color: #8080a0; margin-bottom: 6px; margin-top: 12px; }
+.training-field-input {
+  width: 100%; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px; padding: 10px 14px; color: #e0e0f0; font-size: 0.82rem;
+  font-family: inherit; outline: none;
+}
+.training-field-input:focus { border-color: var(--accent); }
+.training-field-textarea {
+  width: 100%; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px; padding: 10px 14px; color: #e0e0f0; font-size: 0.82rem;
+  font-family: inherit; outline: none; resize: vertical; min-height: 52px;
+}
+.training-field-textarea:focus { border-color: var(--accent); }
+
+/* ── 会话栏 ── */
+.training-session-bar {
+  display: flex; align-items: center; gap: 10px; margin-top: 12px; margin-bottom: 12px;
+  padding: 10px 14px; background: rgba(124,131,255,0.06); border-radius: 12px;
+  border: 1px solid rgba(124,131,255,0.1); flex-wrap: wrap;
+}
+.training-session-icon { font-size: 1.3rem; }
+.training-session-label { font-size: 0.82rem; font-weight: 600; color: #e0e0f0; }
+.training-session-meta { font-size: 0.7rem; color: #8080a0; }
+.training-session-turns { font-size: 0.72rem; color: #8080a0; }
+
+/* ── 对话区 ── */
+.training-chat {
+  min-height: 200px; max-height: 380px; overflow-y: auto;
+  margin-bottom: 12px; display: flex; flex-direction: column; gap: 10px;
+  padding-right: 4px;
+}
+.training-system-msg {
+  text-align: center; font-size: 0.72rem; color: #6a6a8a; padding: 16px;
+}
+.training-msg { padding: 10px 14px; border-radius: 12px; max-width: 90%; line-height: 1.5; }
+.training-msg.user { background: rgba(124,131,255,0.1); align-self: flex-end; }
+.training-msg.ai { background: rgba(255,255,255,0.04); align-self: flex-start; }
+.training-msg.waiting { background: rgba(255,255,255,0.02); align-self: flex-start; color: #8080a0; font-size: 0.75rem; }
+.training-msg-label { display: block; font-size: 0.62rem; color: #7c83ff; margin-bottom: 4px; letter-spacing: 0.04em; }
+.training-msg-text { font-size: 0.82rem; color: #d0d0e0; }
+
+/* ── 输入区 ── */
+.training-input-row { display: flex; gap: 8px; margin-top: 12px; }
+.training-input {
+  flex: 1; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px; padding: 10px 14px; color: #e0e0f0; font-size: 0.82rem;
+  font-family: inherit; outline: none; resize: vertical; min-height: 48px;
+}
+.training-input:focus { border-color: var(--accent); }
+
+/* ── 反馈 ── */
+.training-feedback {
+  padding: 16px 0; border-top: 1px solid rgba(124,131,255,0.15); margin-top: 8px;
+}
+.training-feedback-title { font-size: 1rem; font-weight: 700; color: #e0e0f0; margin-bottom: 4px; }
+.training-feedback-meta { font-size: 0.68rem; color: #6a6a8a; margin-bottom: 16px; }
+
+.training-scores { margin-bottom: 14px; }
+.training-score-row {
+  display: flex; align-items: center; gap: 10px; padding: 6px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+.training-score-label { flex: 1; font-size: 0.78rem; color: #b0b0d0; }
+.training-score-stars { color: #ffb74d; letter-spacing: 2px; font-size: 0.85rem; }
+.training-score-val { font-size: 0.75rem; color: #8080a0; min-width: 32px; text-align: right; }
+
+.training-feedback-section { margin-top: 14px; }
+.training-feedback-section-title { font-size: 0.8rem; font-weight: 600; color: #c0c0e0; margin-bottom: 6px; }
+.training-feedback-item {
+  padding: 8px 12px; border-radius: 8px; margin-bottom: 4px;
+  font-size: 0.78rem; line-height: 1.5;
+}
+.training-feedback-item.good { background: rgba(76,175,80,0.08); color: #a5d6a7; }
+.training-feedback-item.improve { background: rgba(255,183,77,0.08); color: #ffcc80; }
+
+.training-overall {
+  margin-top: 14px; padding: 12px 16px; background: rgba(124,131,255,0.06);
+  border-radius: 12px; border: 1px solid rgba(124,131,255,0.1);
+  font-size: 0.82rem; color: #d0d0e0; line-height: 1.6;
+}
+
+.goals-btn.danger { color: #ef5350; border-color: rgba(239,83,80,0.3); }
+.goals-btn.danger:hover { background: rgba(239,83,80,0.08); border-color: rgba(239,83,80,0.5); }
+
+@media (max-width: 600px) {
+  .training-types { grid-template-columns: 1fr; }
+  .training-msg { max-width: 95%; }
 }

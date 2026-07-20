@@ -61,6 +61,9 @@ function loadAuxContent() {
   else if (auxTab === 'constellation') loadConstellationContent();
   else if (auxTab === 'safety') loadSafetyContent();
   else if (auxTab === 'report') loadReportContent();
+  else if (auxTab === 'assessment') loadAssessmentContent();
+  else if (auxTab === 'goals') loadGoalsContent();
+  else if (auxTab === 'training') loadTrainingContent();
 }
 
 async function loadSafetyContent() {

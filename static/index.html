@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=2.0, user-scalable=yes">
 <title>Psychology</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>">
-<link rel="stylesheet" href="style.css?v=54">
+<link rel="stylesheet" href="style.css?v=59">
 </head>
 <body>
 <div id="debug-trigger"></div>
@@ -18,8 +18,10 @@
   <span class="therapy-toggle-label">疗愈模式</span>
   <span class="therapy-toggle-switch" id="therapySwitch"></span>
 </div>
+<div id="scenarioIndicator" class="scenario-indicator" style="display:none;"></div>
 <div id="input-row">
   <label for="input" class="sr-only">消息输入</label>
+  <button id="scenarioEndBtn" class="scenario-end-btn" style="display:none;" onclick="endScenario()" title="结束场景练习">⏹</button>
   <button id="kaomojiBtn" class="kaomoji-btn" aria-label="颜文字" title="颜文字 (Shift+Enter 换行)">😊</button>
   <textarea id="input" rows="1" placeholder="想说点什么..." maxlength="500" autocomplete="off"></textarea>
   <span id="charCount" class="char-count"></span>
@@ -48,6 +50,9 @@
       <button class="aux-tab" data-tab="memory"><svg class="svg-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 18V5"/><path d="M15 13a4.17 4.17 0 0 1-3-4 4.17 4.17 0 0 1-3 4"/><path d="M17.598 6.5A3 3 0 1 0 12 5a3 3 0 1 0-5.598 1.5"/><path d="M17.997 5.125a4 4 0 0 1 2.526 5.77"/><path d="M18 18a4 4 0 0 0 2-7.464"/><path d="M19.967 17.483A4 4 0 1 1 12 18a4 4 0 1 1-7.967-.517"/><path d="M6 18a4 4 0 0 1-2-7.464"/><path d="M6.003 5.125a4 4 0 0 0-2.526 5.77"/></svg> 记忆</button>
       <button class="aux-tab" data-tab="constellation"><svg class="svg-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/><path d="M20 2v4"/><path d="M22 4h-4"/><circle cx="4" cy="20" r="2"/></svg> 星图</button>
       <button class="aux-tab" data-tab="safety"><svg class="svg-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="M9 12l2 2 4-4"/></svg> 安全</button>
+      <button class="aux-tab" data-tab="assessment"><svg class="svg-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11H7a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1z"/><path d="M17 11h-2a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1z"/><path d="M13 18h-2a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1z"/><path d="M9 18H7a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1z"/><path d="M17 18h-2a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1z"/><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/></svg> 评估</button>
+      <button class="aux-tab" data-tab="goals"><svg class="svg-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> 目标</button>
+      <button class="aux-tab" data-tab="training"><svg class="svg-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="10" x2="10" y1="15" y2="9"/><line x1="14" x2="14" y1="15" y2="9"/></svg> 场景练习</button>
       <button class="aux-tab" data-tab="personality"><svg class="svg-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a5 5 0 1 0 5 5"/><path d="M12 2v3"/><path d="M12 12v2"/><path d="M18.5 2.5 21 4"/><path d="M20 9a5 5 0 0 0-5-5"/><circle cx="12" cy="14" r="8"/><path d="M9.5 17.5c.5-1 2-1.5 2.5-1.5s2 .5 2.5 1.5"/><path d="M10 15h4"/></svg> 人格</button>
       <button class="aux-tab" data-tab="report"><svg class="svg-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/></svg> 报告</button>
       <button class="aux-tab" data-tab="distill"><svg class="svg-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg> 风格</button>
@@ -305,7 +310,8 @@
 </div>
 
 <!-- 第一层：核心基础 -->
-<script src="js/core.js?v=51"></script>
+<script src="js/core.js?v=53"></script>
+<script src="js/consent.js?v=57"></script>
 <!-- 第二层：独立功能模块 -->
 <script src="js/audio.js?v=51"></script>
 <script src="js/debug.js?v=51"></script>
@@ -328,10 +334,13 @@
 <script src="js/therapy.js?v=52"></script>
 <script src="js/crisis.js?v=51"></script>
 <script src="js/settings.js?v=51"></script>
-<script src="js/chat.js?v=52"></script>
+<script src="js/chat.js?v=54"></script>
 <script src="js/distill.js?v=51"></script>
 <script src="js/personality.js?v=51"></script>
-<script src="js/report.js?v=57"></script>
+<script src="js/report.js?v=58"></script>
+<script src="js/assessment.js?v=57"></script>
+<script src="js/goals.js?v=58"></script>
+<script src="js/training.js?v=64"></script>
 <!-- 第七层：主循环（必须最后） -->
 <script src="js/loop.js?v=51"></script>
 </body>

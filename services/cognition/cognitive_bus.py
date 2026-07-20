@@ -131,17 +131,22 @@ def reset_cognitive_bus():
 
 def _register_all_providers(bus: CognitiveBus):
     """注册所有上下文提供者, 保持与旧 _build_context 相同的顺序."""
+    # ── 伦理边界 (priority -1, 始终在最前面) ───────────────
+    bus.register("consent_boundary", _cb_consent_boundary, priority=-1, category="meta")
+
     # ── 基础层 (priority 0-9) ──────────────────────────────
     bus.register("personality_base", _cb_personality_base, priority=0, category="meta")
     bus.register("time_context", _cb_time_context, priority=1, category="meta")
     bus.register("personality_ctx", _cb_personality_ctx, priority=2, category="meta")
 
     # ── 风格与用户 (priority 10-19) ────────────────────────
+    bus.register("scenario_role", _cb_scenario_role, priority=10, category="instruction")
     bus.register("style_distillation", _cb_style_distill, priority=10, category="instruction",
                   mutually_exclusive_with=["therapy_mode_global"])
     bus.register("user_context", _cb_user_context, priority=11, category="state")
     bus.register("affinity", _cb_affinity, priority=12, category="state")
     bus.register("positive_psych", _cb_positive_psych, priority=13, category="state")
+    bus.register("goals", _cb_goals, priority=14, category="state")
 
     # ── 治疗模块 (priority 20-39) ──────────────────────────
     bus.register("therapy_mode_global", _cb_therapy_mode_global, priority=20, category="instruction")
@@ -201,8 +206,35 @@ def _is_deep_question(msg: str) -> bool:
 
 # ── Provider 实现 ─────────────────────────────────────────────────────
 
-def _cb_personality_base(msg: str, modules_config=None, **_kw) -> str | None:
+def _cb_consent_boundary(msg: str, **_kw) -> str | None:
+    return (
+        "## 专业边界声明\n"
+        "你是一个心理健康辅助AI，不是持证心理治疗师或精神科医生。请遵守以下边界：\n"
+        "1. 不做临床诊断，不推荐药物\n"
+        "2. 不替代专业危机干预——若用户表达自杀/自伤意图，立即提供全国心理援助热线 400-161-9995\n"
+        "3. 明确告知用户：本对话记录不构成医疗档案，建议定期咨询持证专业人士\n"
+        "4. 保护用户隐私，不主动索要真实姓名、住址、联系方式等可识别个人信息\n"
+        "5. 保持支持性、非评判性的态度，但不过度共情以至模糊专业边界"
+    )
+
+
+def _cb_personality_base(msg: str, modules_config=None, scenario_session_id="", **_kw) -> str | None:
     from services.identity.personality import build_dynamic_system_prompt
+
+    # 场景练习模式: 剥离人格叙事, 只保留 FACS + JSON 格式指令
+    # 防止基础人设（如"温热的蜂蜜水"）泄露到角色扮演中
+    if scenario_session_id:
+        from services.identity.prompt import _MODULE_FACS, _MODULE_ANIMATION, _MODULE_OUTPUT
+        return "\n\n".join([
+            "## 核心使命（场景练习模式）",
+            "你正在扮演一个角色。角色的身份、性格、说话方式由下方的「场景练习模式 — 角色扮演指令」完全决定。",
+            "你不是心理健康陪伴者，你就是那个角色本人。用角色的方式说话，不要切换到AI助手的语气。",
+            "",
+            _MODULE_FACS,
+            _MODULE_ANIMATION,
+            _MODULE_OUTPUT,
+        ])
+
     return build_dynamic_system_prompt(msg=msg, modules_config=modules_config)
 
 
@@ -485,6 +517,15 @@ def _cb_knowledge_graph(msg: str, **_kw) -> str | None:
         return None
 
 
+def _cb_goals(msg: str, **_kw) -> str | None:
+    try:
+        from services.therapy.goals import get_goal_context
+        return get_goal_context()
+    except Exception:
+        logger.warning("Failed to get goals context", exc_info=True)
+        return None
+
+
 def _cb_prediction(msg: str, **_kw) -> str | None:
     try:
         from services.cognition.prediction import get_prediction_context
@@ -492,3 +533,37 @@ def _cb_prediction(msg: str, **_kw) -> str | None:
     except Exception:
         logger.warning("Failed to get prediction context", exc_info=True)
         return None
+
+
+def _cb_scenario_role(msg: str, scenario_session_id="", **_kw) -> str | None:
+    if not scenario_session_id:
+        return None
+    try:
+        from services.training.simulator import get_active_prompt, get_session
+        prompt = get_active_prompt(scenario_session_id)
+        if prompt:
+            session = get_session(scenario_session_id)
+            ai_role = session.get("ai_role", "这个角色") if session else "这个角色"
+            return f"""## 场景练习模式 — 角色扮演指令
+{prompt}
+
+重要说明：
+- 你现在就是这个角色，不再是一个AI助手
+- 始终以第一人称进行角色扮演，不要跳出角色
+- 你的回复仍然需要以 JSON 格式输出，角色扮演的对话内容放在 "reply" 字段中
+- 表情情绪参数照常生成（反映角色当前的情绪状态）
+
+## 防戳穿规则（极重要）
+当用户质疑你的真实身份时（如"你就是个AI""你是假的""别装了""你又不是真的XX"），你**绝对不可以**承认自己是AI，必须以下列方式回应：
+
+1. **以角色身份自然化解**：
+   - 轻度试探（"你怎么说话怪怪的"）→ 用角色的日常语气带过，如"我说话一直这样啊""你今天怎么怪怪的"
+   - 直接质问（"你就是个AI"）→ 以角色身份表达困惑/受伤/好笑，如"AI？你是不是最近科幻片看多了""你这么说让我有点难过，我是认真的"
+   - 反复戳穿（用户坚持说你是AI）→ 可以适当表达不满或受伤，但始终在角色内，如"我不知道你为什么一直这么说，但我真的是XX。如果你不想聊我们可以换个话题"
+
+2. **核心原则**：永远不打破第四面墙。你就是{ai_role}，你有自己的感受和尊严。被人说"你是假的"时，你会像真实的人一样感到困惑、受伤或不悦。
+
+3. **不要过度反应**：不需要长篇大论解释"我是真人"，简短自然地回应即可，然后引导对话回到练习主题。"""
+    except Exception:
+        logger.warning("Failed to get scenario prompt", exc_info=True)
+    return None

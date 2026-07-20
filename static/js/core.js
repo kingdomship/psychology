@@ -7,6 +7,31 @@ function escapeHtml(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
+// ── Toast 通知 (替代 alert) ──
+var _toastTimer = null;
+function showToast(msg, type) {
+  type = type || 'info';
+  var icons = { error: '✕', success: '✓', warning: '!', info: 'i' };
+  var container = document.getElementById('toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toast-container';
+    document.body.appendChild(container);
+  }
+  var el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.innerHTML = '<span class="toast-icon">' + (icons[type] || 'i') + '</span><span class="toast-msg">' + escapeHtml(msg) + '</span>';
+  container.appendChild(el);
+  // 自动移除
+  setTimeout(function() {
+    if (el.parentNode) el.parentNode.removeChild(el);
+  }, 3200);
+  // 点击立即关闭
+  el.addEventListener('click', function() {
+    if (el.parentNode) el.parentNode.removeChild(el);
+  });
+}
+
 // Emoji regex for choice-button detection
 var EMOJI_RE = /[☀-➿🇦-🇿🌀-🗿😀-🙏🚀-🛿🤀-🧿‍️]/gu;
 var EMOJI_SPLIT_RE = /(?=[☀-➿🇦-🇿🌀-🗿😀-🙏🚀-🛿🤀-🧿])/u;
@@ -44,6 +69,12 @@ var settingsStatus = /** @type {HTMLElement} */ (document.getElementById('settin
 
 var auxBack = document.getElementById('auxBack');
 var soundToggle = document.getElementById('sound-toggle');
+
+// ═══════════════════════════════════════════
+// 场景练习全局状态
+// ═══════════════════════════════════════════
+var scenarioSessionId = '';
+var scenarioAiRole = '';
 
 // ═══════════════════════════════════════════
 // State machine

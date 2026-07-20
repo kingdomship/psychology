@@ -68,12 +68,14 @@ function renderReport(report) {
   html += '<div class="report-subtitle">' + (d.date_from || '?') + ' ~ ' + (d.date_to || '?') + '  |  ' + (d.active_days || 0) + ' 个活跃天</div>';
   html += '</div>';
 
-  // 手动生成按钮
+  // 手动生成 + 导出按钮
   html += '<div class="report-actions">';
   html += '<span class="report-actions-label">手动生成:</span>';
   [7, 14, 30].forEach(function(days) {
     html += '<button class="report-gen-btn sm" onclick="generateReport(' + days + ')">' + days + '天</button>';
   });
+  html += '<span class="report-actions-sep">|</span>';
+  html += '<button class="report-gen-btn sm export" onclick="exportTranscript()">&#x1F4E4; 导出逐字稿</button>';
   html += '</div>';
 
   // 6卡片网格
@@ -107,10 +109,14 @@ function renderReport(report) {
   }
   html += '</div>';
 
+  // 跨会话洞察
+  html += '<div id="crossSessionCard"></div>';
+
   // 历史报告列表容器
   html += '<div class="report-history" id="reportHistory"></div>';
 
   auxContent.innerHTML = html;
+  loadCrossSession();
 }
 
 // ── 卡片渲染 ──
@@ -377,4 +383,106 @@ function downloadReport() {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+// ── 导出逐字稿 ──
+
+function exportTranscript() {
+  var d = _reportData ? (_reportData.dashboard || {}) : {};
+  var df = d.date_from || '';
+  var dt = d.date_to || '';
+  var url = '/api/export/transcript?fmt=md';
+  if (df) url += '&date_from=' + encodeURIComponent(df);
+  if (dt) url += '&date_to=' + encodeURIComponent(dt);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'transcript-' + (df || 'recent') + '.md';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+// ── 跨会话洞察 ──
+
+async function loadCrossSession() {
+  var el = document.getElementById('crossSessionCard');
+  if (!el) return;
+  el.innerHTML = '<div style="text-align:center;padding:20px;color:#6a6a8a;">加载跨会话分析...</div>';
+  try {
+    var resp = await fetch('/api/report/cross-session?weeks=4');
+    var json = await resp.json();
+    if (!json.ok) { el.innerHTML = ''; return; }
+    renderCrossSession(json, el);
+  } catch (e) {
+    el.innerHTML = '<div class="report-card-empty">跨会话分析暂不可用</div>';
+  }
+}
+
+function renderCrossSession(result, el) {
+  var analysis = result.analysis;
+  var data = result.data || {};
+  var html = '';
+
+  if (!analysis) {
+    html += '<div class="report-card"><div class="report-card-title">🔄 跨会话洞察</div>';
+    html += '<div class="report-card-empty">' + escapeHtml(result.message || '需要至少2周活跃数据') + '</div>';
+    html += '<div class="report-card-meta" style="margin-top:8px;">当前: ' + (data.active_weeks || 0) + ' 活跃周, ' + (data.total_messages || 0) + ' 条消息</div>';
+    html += '</div>';
+    el.innerHTML = html;
+    return;
+  }
+
+  html += '<div class="report-card" style="grid-column:1/-1;">';
+  html += '<div class="report-card-title">🔄 跨会话洞察 (' + (data.weeks || 4) + '周)</div>';
+
+  // Narrative
+  if (analysis.narrative) {
+    html += '<div class="report-insight-text" style="margin-bottom:14px;">' + escapeHtml(analysis.narrative) + '</div>';
+  }
+
+  // Themes
+  if (analysis.themes && analysis.themes.length) {
+    html += '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">';
+    analysis.themes.forEach(function(t) {
+      var trendIcon = { '上升': '↑', '下降': '↓', '稳定': '→' }[t.trend] || '';
+      html += '<span class="report-finding-tag">' + escapeHtml(t.topic) + ' ' + trendIcon + ' (' + t.weeks_seen + '周)</span>';
+    });
+    html += '</div>';
+  }
+
+  // Emotion trend
+  if (analysis.emotion_trend) {
+    html += '<div class="report-metric">';
+    html += '<span class="report-metric-label">📈 情绪趋势</span>';
+    html += '<span class="report-metric-sub">' + escapeHtml(analysis.emotion_trend) + '</span>';
+    html += '</div>';
+  }
+
+  // Behavior shift
+  if (analysis.behavior_shift) {
+    html += '<div class="report-metric">';
+    html += '<span class="report-metric-label">🔄 行为变化</span>';
+    html += '<span class="report-metric-sub">' + escapeHtml(analysis.behavior_shift) + '</span>';
+    html += '</div>';
+  }
+
+  // Suggestions
+  if (analysis.suggestions && analysis.suggestions.length) {
+    html += '<div class="report-suggestions" style="margin-top:12px;">';
+    html += '<div class="report-suggestions-title">💡 纵向建议</div>';
+    analysis.suggestions.forEach(function(s) {
+      html += '<div class="report-suggestion-item">🌱 ' + escapeHtml(s) + '</div>';
+    });
+    html += '</div>';
+  }
+
+  // Source summary
+  html += '<div class="report-card-meta" style="margin-top:10px;border-top:1px solid rgba(255,255,255,0.05);padding-top:8px;">';
+  html += '基于 ' + (data.active_weeks || 0) + ' 周 ' + (data.total_messages || 0) + ' 条对话 + ';
+  var diaryTotal = 0;
+  (data.weekly_diary || []).forEach(function(w) { diaryTotal += w.diary_count || 0; });
+  html += diaryTotal + ' 篇日记</div>';
+
+  html += '</div>';
+  el.innerHTML = html;
 }

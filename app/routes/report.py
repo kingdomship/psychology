@@ -32,6 +32,14 @@ async def list(limit: int = Query(20, ge=1, le=100)):
     return {"ok": True, "data": reports, "count": len(reports)}
 
 
+@router.get("/cross-session")
+async def cross_session(weeks: int = Query(4, ge=2, le=12, description="分析跨度(周)")):
+    """跨会话模式摘要 — LLM 提取重复主题 + 变化趋势 + 纵向洞察."""
+    from services.report.cross_session import analyze_cross_session
+    result = analyze_cross_session(weeks)
+    return {"ok": True, **result}
+
+
 @router.get("/{report_id}")
 async def get(report_id: int):
     """返回指定报告的完整数据."""

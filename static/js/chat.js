@@ -335,7 +335,7 @@ async function sendMessage() {
     const resp = await fetch('/api/chat/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text, therapy_mode: therapyMode }),
+      body: JSON.stringify({ message: text, therapy_mode: therapyMode, scenario_session_id: scenarioSessionId }),
       signal: abortController.signal,
     });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -517,3 +517,108 @@ function loadTopics() {
 }
 
 sendBtn.addEventListener('click', sendMessage);
+
+// ═══════════════════════════════════════════
+// 场景练习 — 结束 & 反馈
+// ═══════════════════════════════════════════
+
+function updateScenarioUI() {
+  var indicator = document.getElementById('scenarioIndicator');
+  var endBtn = document.getElementById('scenarioEndBtn');
+  if (scenarioSessionId) {
+    if (indicator) {
+      indicator.textContent = '🎯 正在和 ' + (scenarioAiRole || '对方') + ' 练习';
+      indicator.style.display = 'flex';
+    }
+    if (endBtn) endBtn.style.display = 'inline-flex';
+    if (textarea) textarea.placeholder = '对 ' + (scenarioAiRole || '对方') + ' 说...';
+    // 互斥：场景模式隐藏疗愈开关，避免 UI 重叠
+    if (typeof therapyToggleEl !== 'undefined' && therapyToggleEl) {
+      therapyToggleEl.style.display = 'none';
+    }
+  } else {
+    if (indicator) indicator.style.display = 'none';
+    if (endBtn) endBtn.style.display = 'none';
+    if (textarea) textarea.placeholder = '想说点什么...';
+    // 恢复疗愈开关
+    if (typeof therapyToggleEl !== 'undefined' && therapyToggleEl) {
+      therapyToggleEl.style.display = '';
+    }
+  }
+}
+
+async function endScenario() {
+  if (!confirm('确认结束练习？系统将生成反馈报告。')) return;
+
+  var endBtn = document.getElementById('scenarioEndBtn');
+  if (endBtn) { endBtn.disabled = true; endBtn.textContent = '生成中...'; }
+
+  try {
+    var resp = await fetch('/api/training/end?session_id=' + scenarioSessionId, { method: 'POST' });
+    var json = await resp.json();
+    if (!json.ok) { alert(json.error || '结束失败'); return; }
+
+    var sid = scenarioSessionId;
+    scenarioSessionId = '';
+    scenarioAiRole = '';
+    updateScenarioUI();
+
+    renderScenarioFeedback(json);
+  } catch (e) { alert('结束失败: ' + e.message); }
+  finally {
+    if (endBtn) { endBtn.disabled = false; endBtn.textContent = '结束练习'; }
+  }
+}
+
+function renderScenarioFeedback(result) {
+  var fb = result.feedback || {};
+  var scores = fb.scores || {};
+
+  var html = '<div style="padding:16px;margin-top:12px;background:rgba(124,131,255,0.06);border:1px solid rgba(124,131,255,0.15);border-radius:14px;">';
+  html += '<div style="font-size:1rem;font-weight:700;color:#e0e0f0;margin-bottom:4px;">📋 练习反馈报告</div>';
+  html += '<div style="font-size:0.68rem;color:#6a6a8a;margin-bottom:14px;">场景: ' + escapeHtml(result.scenario_label || '') + ' | 对方: ' + escapeHtml(result.ai_role || '') + ' | 对话轮数: ' + (result.turn_count || 0) + '</div>';
+
+  var dims = [
+    { key: 'clarity', label: '表达清晰度' },
+    { key: 'awareness', label: '情绪觉察' },
+    { key: 'boundary', label: '边界维护' },
+    { key: 'assertiveness', label: '自信表达' },
+    { key: 'perspective', label: '换位思考' }
+  ];
+  html += '<div style="margin-bottom:14px;">';
+  dims.forEach(function(d) {
+    var score = Number(scores[d.key] || 3);
+    var stars = '★'.repeat(score) + '☆'.repeat(5 - score);
+    html += '<div style="display:flex;align-items:center;gap:10px;padding:4px 0;font-size:0.78rem;">';
+    html += '<span style="flex:1;color:#b0b0d0;">' + d.label + '</span>';
+    html += '<span style="color:#ffb74d;letter-spacing:2px;">' + stars + '</span>';
+    html += '<span style="color:#8080a0;min-width:28px;text-align:right;">' + score + '/5</span>';
+    html += '</div>';
+  });
+  html += '</div>';
+
+  if (fb.highlights && fb.highlights.length) {
+    html += '<div style="margin-top:12px;"><div style="font-size:0.8rem;font-weight:600;color:#c0c0e0;margin-bottom:6px;">✅ 亮点</div>';
+    fb.highlights.forEach(function(h) {
+      html += '<div style="padding:6px 10px;border-radius:8px;margin-bottom:3px;font-size:0.76rem;background:rgba(76,175,80,0.08);color:#a5d6a7;">' + escapeHtml(h) + '</div>';
+    });
+    html += '</div>';
+  }
+
+  if (fb.improvements && fb.improvements.length) {
+    html += '<div style="margin-top:12px;"><div style="font-size:0.8rem;font-weight:600;color:#c0c0e0;margin-bottom:6px;">📝 改进建议</div>';
+    fb.improvements.forEach(function(h) {
+      html += '<div style="padding:6px 10px;border-radius:8px;margin-bottom:3px;font-size:0.76rem;background:rgba(255,183,77,0.08);color:#ffcc80;">' + escapeHtml(h) + '</div>';
+    });
+    html += '</div>';
+  }
+
+  if (fb.overall) {
+    html += '<div style="margin-top:12px;padding:10px 14px;background:rgba(124,131,255,0.06);border-radius:10px;font-size:0.8rem;color:#d0d0e0;">💬 ' + escapeHtml(fb.overall) + '</div>';
+  }
+  html += '</div>';
+
+  // 显示在对话框中
+  var dlg = document.getElementById('dlgBody');
+  if (dlg) dlg.innerHTML += html;
+}

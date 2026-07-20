@@ -49,6 +49,16 @@ from app.config import ARCHIVE_PATH, PERSONA_PATH, PROFILE_PATH, SUMMARY_PATH, a
 router = APIRouter()
 logger = logging.getLogger("emoji-chat")
 
+
+@router.post("/api/consent")
+async def record_consent():
+    """记录用户知情同意."""
+    from app.db import execute
+    execute(
+        "INSERT INTO user_consent (session_id, consented) VALUES ('default', TRUE)"
+    )
+    return {"ok": True}
+
 _CONDENSE_EVERY = 50
 _condense_lock = threading.Lock()
 _last_condense_count = 0
@@ -101,8 +111,11 @@ def _post_reply_pipeline(msg: str, reply: str, label: str,
                          llm_tags: list[str] | None = None,
                          turn_id: int | None = None,
                          is_deep: bool = False,
-                         crisis_result: dict | None = None):
+                         crisis_result: dict | None = None,
+                         scenario_session_id: str = ""):
     """Unified post-reply pipeline: index, update state, archive, fire background tasks."""
+    is_scenario = bool(scenario_session_id)
+
     # ── 危机事件日志 ──────────────────────────────────────────
     if crisis_result and crisis_result.get("severity", 0) > 0:
         try:
@@ -120,41 +133,44 @@ def _post_reply_pipeline(msg: str, reply: str, label: str,
             get_background_executor().submit(index_turn, turn_id, msg, llm_tags)
         else:
             get_background_executor().submit(index_turn, turn_id, msg)
-    update_affinity(msg, label)
-    update_affect(msg)
-    update_salience(msg, label)
+    update_affect(msg)  # 场景模式也保留 — 驱动像素脸情绪
+    if not is_scenario:
+        update_affinity(msg, label)
+        update_salience(msg, label)
 
     # Life domain tracking + curiosity seeding (lightweight, no LLM)
-    try:
-        from services.psych.life_domains import update_life_domains
-        from services.emotion.affect import get_affect
-        update_life_domains(msg, get_affect())
-    except Exception:
-        logger.warning("生命领域更新失败", exc_info=True)
-    try:
-        from services.psych.entry_point import update_curiosity_queue
-        update_curiosity_queue(msg)
-    except Exception:
-        logger.warning("好奇心队列更新失败", exc_info=True)
-    adjust_expression_amplitude(msg)
+    if not is_scenario:
+        try:
+            from services.psych.life_domains import update_life_domains
+            from services.emotion.affect import get_affect
+            update_life_domains(msg, get_affect())
+        except Exception:
+            logger.warning("生命领域更新失败", exc_info=True)
+        try:
+            from services.psych.entry_point import update_curiosity_queue
+            update_curiosity_queue(msg)
+        except Exception:
+            logger.warning("好奇心队列更新失败", exc_info=True)
+        adjust_expression_amplitude(msg)
     _archive_conversation(msg, reply, thinking)
-    get_background_executor().submit(update_drives_on_chat, msg, label, is_deep=is_deep)
-    get_background_executor().submit(generate_prediction, msg, reply)
-    get_background_executor().submit(pre_dialogue_analyze)
-    get_background_executor().submit(feedback, actual_emotion=label)
-    get_background_executor().submit(_maybe_condense)
-    get_background_executor().submit(_maybe_update_memory_files)
-    get_background_executor().submit(maybe_crystallize)
-    get_background_executor().submit(maybe_guard)
-    get_background_executor().submit(maybe_detect_strengths)
-    get_background_executor().submit(detect_situations)
-    get_background_executor().submit(distill_episode)
-    get_background_executor().submit(analyze_attachment)
-    get_background_executor().submit(check_and_intervene, reply)
-    get_background_executor().submit(maybe_extract_kg, msg)
-    get_background_executor().submit(self_evaluate, msg, reply, turn_id)
-    get_background_executor().submit(maybe_deep_audit)
-    get_background_executor().submit(_check_report_milestone)
+    if not is_scenario:
+        get_background_executor().submit(update_drives_on_chat, msg, label, is_deep=is_deep)
+        get_background_executor().submit(generate_prediction, msg, reply)
+        get_background_executor().submit(pre_dialogue_analyze)
+        get_background_executor().submit(feedback, actual_emotion=label)
+        get_background_executor().submit(_maybe_condense)
+        get_background_executor().submit(_maybe_update_memory_files)
+        get_background_executor().submit(maybe_crystallize)
+        get_background_executor().submit(maybe_guard)
+        get_background_executor().submit(maybe_detect_strengths)
+        get_background_executor().submit(detect_situations)
+        get_background_executor().submit(distill_episode)
+        get_background_executor().submit(analyze_attachment)
+        get_background_executor().submit(check_and_intervene, reply)
+        get_background_executor().submit(maybe_extract_kg, msg)
+        get_background_executor().submit(self_evaluate, msg, reply, turn_id)
+        get_background_executor().submit(maybe_deep_audit)
+        get_background_executor().submit(_check_report_milestone)
 
 
 def _check_report_milestone():
@@ -558,6 +574,7 @@ def _build_context(msg: str, thinking: str | None = None,
                    crisis_result: dict | None = None,
                    therapy_intent: dict | None = None,
                    therapy_mode: bool = False,
+                   scenario_session_id: str = "",
                    deescalation_result: dict | None = None,
                    mi_result: dict | None = None,
                    polyvagal_result: dict | None = None) -> list:
@@ -572,6 +589,7 @@ def _build_context(msg: str, thinking: str | None = None,
         crisis_result=crisis_result,
         therapy_intent=therapy_intent,
         therapy_mode=therapy_mode,
+        scenario_session_id=scenario_session_id,
         deescalation_result=deescalation_result,
         mi_result=mi_result,
         polyvagal_result=polyvagal_result,
@@ -814,7 +832,8 @@ async def chat(req: ChatRequest):
     last_row = q("SELECT EXTRACT(EPOCH FROM (NOW() - created_at)) AS secs FROM chat_history ORDER BY id DESC LIMIT 1", fetch="one")
     idle_min = (float(last_row["secs"]) / 60.0) if last_row and last_row["secs"] else 0
     gate = gate_decision(msg, affect, salience, pred_error, idle_min)
-    skip_cache = is_deep or gate == "system2"
+    # 场景练习模式强制跳过缓存 — 角色扮演每次对话都是唯一的
+    skip_cache = is_deep or gate == "system2" or req.scenario_session_id
 
     if not skip_cache:
         row = q("SELECT * FROM emotion_cache WHERE label = %s", [key], fetch="one")
@@ -825,12 +844,21 @@ async def chat(req: ChatRequest):
                 [msg, row["reply"], row["label"]], fetch="one",
             )
             turn_id = new_row["id"] if new_row else None
-            _post_reply_pipeline(msg, row["reply"], row["label"], turn_id=turn_id, is_deep=False)
+            _post_reply_pipeline(msg, row["reply"], row["label"], turn_id=turn_id, is_deep=False,
+                                 scenario_session_id=req.scenario_session_id)
             result = _row_to_response(row)
             for f in result.get("emotions", []):
                 f.update(jitter_frame(f))
                 f.update(scale_emotion_params(f))
             result["source"] = "cache"
+            # 场景练习: 缓存路径也记录轮次 (安全网)
+            if req.scenario_session_id:
+                try:
+                    from services.training.simulator import record_turn
+                    record_turn(req.scenario_session_id, "user", msg)
+                    record_turn(req.scenario_session_id, "ai", row["reply"])
+                except Exception:
+                    logger.warning("记录场景对话轮次失败", exc_info=True)
             return result
 
     fg_token = llm_foreground()
@@ -898,6 +926,7 @@ async def chat(req: ChatRequest):
                                   crisis_result=crisis_result,
                                   therapy_intent=therapy_intent,
                                   therapy_mode=req.therapy_mode,
+                                  scenario_session_id=req.scenario_session_id,
                                   deescalation_result=deescalation_result,
                                   mi_result=mi_result,
                                   polyvagal_result=pv_result)
@@ -961,7 +990,17 @@ async def chat(req: ChatRequest):
 
     _post_reply_pipeline(msg, result["reply"], parsed[0]["label"],
                          thinking=thinking, llm_tags=llm_tags, turn_id=turn_id,
-                         is_deep=is_deep, crisis_result=crisis_result)
+                         is_deep=is_deep, crisis_result=crisis_result,
+                         scenario_session_id=req.scenario_session_id)
+
+    # 场景练习: 记录对话轮次 (非流式路径)
+    if req.scenario_session_id:
+        try:
+            from services.training.simulator import record_turn
+            record_turn(req.scenario_session_id, "user", msg)
+            record_turn(req.scenario_session_id, "ai", result["reply"])
+        except Exception:
+            logger.warning("记录场景对话轮次失败", exc_info=True)
 
     first = parsed[0]
     seq = json.dumps(parsed) if len(parsed) > 1 else None
@@ -992,7 +1031,8 @@ async def chat_stream(req: ChatRequest):
         last_row = q("SELECT EXTRACT(EPOCH FROM (NOW() - created_at)) AS secs FROM chat_history ORDER BY id DESC LIMIT 1", fetch="one")
         idle_min = (float(last_row["secs"]) / 60.0) if last_row and last_row["secs"] else 0
         gate = gate_decision(msg, affect, salience, pred_error, idle_min)
-        skip_cache = is_deep or gate == "system2"
+        # 场景练习模式强制跳过缓存 — 角色扮演每次对话都是唯一的
+        skip_cache = is_deep or gate == "system2" or req.scenario_session_id
 
         if not skip_cache:
             row = q("SELECT * FROM emotion_cache WHERE label = %s", [key], fetch="one")
@@ -1003,7 +1043,16 @@ async def chat_stream(req: ChatRequest):
                     [msg, row["reply"], row["label"]], fetch="one",
                 )
                 turn_id = new_row["id"] if new_row else None
-                _post_reply_pipeline(msg, row["reply"], row["label"], turn_id=turn_id, is_deep=False)
+                _post_reply_pipeline(msg, row["reply"], row["label"], turn_id=turn_id, is_deep=False,
+                                     scenario_session_id=req.scenario_session_id)
+                # 场景练习: 缓存路径也记录轮次 (安全网)
+                if req.scenario_session_id:
+                    try:
+                        from services.training.simulator import record_turn
+                        record_turn(req.scenario_session_id, "user", msg)
+                        record_turn(req.scenario_session_id, "ai", row["reply"])
+                    except Exception:
+                        logger.warning("记录场景对话轮次失败", exc_info=True)
                 r = _row_to_response(row)
                 for f in r.get("emotions", []):
                     f.update(jitter_frame(f))
@@ -1125,6 +1174,7 @@ async def chat_stream(req: ChatRequest):
                                       crisis_result=crisis_result,
                                       therapy_intent=therapy_intent,
                                       therapy_mode=req.therapy_mode,
+                                      scenario_session_id=req.scenario_session_id,
                                       deescalation_result=deescalation_result,
                                       mi_result=mi_result,
                                       polyvagal_result=pv_result)
@@ -1161,7 +1211,17 @@ async def chat_stream(req: ChatRequest):
         turn_id = new_row["id"] if new_row else None
         _post_reply_pipeline(msg, reply, parsed[0]["label"],
                              thinking=thinking, llm_tags=llm_tags, turn_id=turn_id,
-                             is_deep=is_deep, crisis_result=crisis_result)
+                             is_deep=is_deep, crisis_result=crisis_result,
+                             scenario_session_id=req.scenario_session_id)
+
+        # 场景练习: 记录对话轮次
+        if req.scenario_session_id:
+            try:
+                from services.training.simulator import record_turn
+                record_turn(req.scenario_session_id, "user", msg)
+                record_turn(req.scenario_session_id, "ai", reply)
+            except Exception:
+                logger.warning("记录场景对话轮次失败", exc_info=True)
 
         # 干预效果追踪 (stream 路径)
         if _aff_before and turn_id:
